@@ -9,6 +9,7 @@ Run this script ONCE per screening session to avoid hitting API rate limits.
 import requests
 import pandas as pd
 import numpy as np
+import yfinance as yf
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Any
 import time
@@ -24,15 +25,13 @@ load_dotenv()
 class DataCollector:
     """Fetch and calculate metrics for stock screening"""
     
-    def __init__(self, fmp_api_key: str, alpha_vantage_key: str):
+    def __init__(self, fmp_api_key: str, alpha_vantage_key: str = None):
         self.fmp_api_key = fmp_api_key
-        self.alpha_vantage_key = alpha_vantage_key
+        self.alpha_vantage_key = alpha_vantage_key  # Deprecated, kept for backwards compatibility
         self.fmp_base_url = "https://financialmodelingprep.com/stable"
-        self.av_base_url = "https://www.alphavantage.co/query"
         
         # Track API calls
         self.fmp_calls = 0
-        self.av_calls = 0
         
     def _make_fmp_request(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Optional[Any]:
         """Make FMP API request with rate limit tracking"""
@@ -52,59 +51,110 @@ class DataCollector:
             return None
     
     def _make_av_request(self, params: Dict[str, Any]) -> Optional[Any]:
-        """Make Alpha Vantage request with rate limit tracking"""
-        params['apikey'] = self.alpha_vantage_key
+        """Make yfinance call (replaces Alpha Vantage)"""
+        # Deprecated - Alpha Vantage no longer used
+        return None
+    
+    def _fetch_yfinance_metrics(self, symbol: str) -> Dict[str, Any]:
+        """Fetch company metrics from yfinance (replaces Alpha Vantage)"""
+        try:
+            tk = yf.Ticker(symbol)
+            info = tk.info or {}
+            
+            def safe_float(value):
+                try:
+                    return float(value) if value not in ['None', '', '-', 'N/A', None] else None
+                except (ValueError, TypeError):
+                    return None
+            
+            metrics = {
+                'pe_ratio': safe_float(info.get('trailingPE') or info.get('forwardPE')),
+                'pb_ratio': safe_float(info.get('priceToBook')),
+                'dividend_yield': safe_float(info.get('dividendYield')),
+                'roe': safe_float(info.get('returnOnEquity')),
+                'beta_av': safe_float(info.get('beta')),
+                'profit_margin': safe_float(info.get('profitMargins')),
+                'expense_ratio': safe_float(info.get('expenseRatio') or info.get('netExpenseRatio') or info.get('totalExpenseRatio')),
+                'net_assets': self._parse_net_assets(info.get('totalAssets') or info.get('totalNetAssets') or info.get('netAssets') or info.get('nav')),
+            }
+            return metrics
+        except Exception as e:
+            print(f"  ❌ yfinance fetch failed for {symbol}: {e}")
+            return {}
+    
+    def _parse_net_assets(self, value) -> Optional[float]:
+        """Parse net assets with suffix (K, M, B, T)"""
+        if value is None or value == '' or value == '-':
+            return None
         
         try:
-            response = requests.get(self.av_base_url, params=params)
-            response.raise_for_status()
-            self.av_calls += 1
-            print(f"  [AV calls: {self.av_calls}/25]")
-            time.sleep(12)  # AV rate limit: 5 calls/min, so wait 12 sec between calls
-            return response.json()
-        except Exception as e:
-            print(f"  ❌ AV request failed: {e}")
+            value = str(value).strip().upper()
+            multipliers = {'K': 1e3, 'M': 1e6, 'B': 1e9, 'T': 1e12}
+            
+            for suffix, multiplier in multipliers.items():
+                if value.endswith(suffix):
+                    return float(value[:-1]) * multiplier
+            
+            return float(value)
+        except (ValueError, TypeError, AttributeError):
             return None
     
     # ========== DATA FETCHING ==========
     
     def get_historical_prices(self, symbol: str, years: int = 3) -> pd.DataFrame:
-        """Fetch historical prices from Alpha Vantage"""
-        params = {
-            'function': 'TIME_SERIES_DAILY',
-            'symbol': symbol,
-            'outputsize': 'full',  # Get full 20+ years, then we'll filter
-            'datatype': 'json'
-        }
-        
-        data = self._make_av_request(params)
-        
-        if not data or 'Time Series (Daily)' not in data:
+        """Fetch historical prices using yfinance
+
+        This replaces the Alpha Vantage implementation with `yfinance.download`.
+        Returns a DataFrame with columns: `date, open, high, low, close, volume`.
+        """
+        end = datetime.now()
+        start = end - timedelta(days=365 * years)
+
+        try:
+            data = yf.download(
+                symbol,
+                start=start.strftime('%Y-%m-%d'),
+                end=end.strftime('%Y-%m-%d'),
+                progress=False,
+                auto_adjust=False,
+            )
+        except Exception as e:
+            print(f"  ❌ yfinance download failed for {symbol}: {e}")
+            return pd.DataFrame()
+
+        if data is None or data.empty:
             print(f"  ⚠️  No price data for {symbol}")
             return pd.DataFrame()
-        
-        # Convert nested dict to DataFrame
-        time_series = data['Time Series (Daily)']
-        df = pd.DataFrame.from_dict(time_series, orient='index')
-        
-        # Rename columns (AV returns: '1. open', '2. high', etc.)
-        df.columns = ['open', 'high', 'low', 'close', 'volume']
-        
-        # Convert index to datetime and sort
-        df.index = pd.to_datetime(df.index)
-        df = df.sort_index().reset_index()
-        df.rename(columns={'index': 'date'}, inplace=True)
-        
-        # Convert price columns to float (they come as strings)
+
+        # Reset index and normalize column names
+        df = data.reset_index().rename(
+            columns={
+                'Date': 'date',
+                'Open': 'open',
+                'High': 'high',
+                'Low': 'low',
+                'Close': 'close',
+                'Adj Close': 'adj_close',
+                'Volume': 'volume',
+            }
+        )
+
+        # yfinance may return a MultiIndex columns (Price, Ticker) for multi-ticker downloads.
+        # For single-ticker downloads the first level contains the price names we care about.
+        if getattr(df.columns, 'nlevels', 1) > 1:
+            df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
+
+        # Ensure datetime and proper dtypes
+        df['date'] = pd.to_datetime(df['date'])
         for col in ['open', 'high', 'low', 'close', 'volume']:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-        
-        # Filter to requested time period
-        to_date = datetime.now()
-        from_date = to_date - timedelta(days=365 * years)
-        df = df[df['date'] >= from_date]
-    
-        return df
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+
+        # Keep the standard set of columns
+        keep_cols = [c for c in ['date', 'open', 'high', 'low', 'close', 'volume'] if c in df.columns]
+        df = df[keep_cols]
+
+        return df.sort_values('date').reset_index(drop=True)
     
     def get_company_profile(self, symbol: str) -> Dict[str, Any]:
         """Fetch company profile from FMP"""
@@ -121,82 +171,9 @@ class DataCollector:
             }
         return {}
     
-    def get_alpha_vantage_data(self, symbol: str) -> Dict:
-        """
-        Fetch financial data from Alpha Vantage
-        Uses OVERVIEW for stocks, ETF_PROFILE for ETFs
-        """
-        # List of known ETFs (you can expand this)
-        ETF_LIST = [
-            'BND', 'AGG', 'TLT', 'IEF', 'SHV', 'BIL',  # Bonds
-            'QQQ', 'VGT', 'SPY', 'VTI',  # Tech/Broad Market
-            'VHT', 'XLV',  # Healthcare
-            'VNQ',  # Real Estate
-            'VEA', 'VWO', 'IEMG',  # International
-            'VOX',  # Communications
-            'ICLN', 'TAN', 'QCLN',  # Clean Energy
-        ]
-        
-        is_etf = symbol in ETF_LIST
-        
-        if is_etf:
-            return self._get_etf_profile(symbol) 
-        else:
-            return self._get_stock_overview(symbol)
-
-    def _get_stock_overview(self, symbol: str) -> Dict:
-        """Fetch stock data using OVERVIEW"""
-        params = {'function': 'OVERVIEW', 'symbol': symbol}
-        
-        data = self._make_av_request(params)
-        if not data or 'Symbol' not in data:
-            return {}
-        
-        def safe_float(value):
-            try:
-                return float(value) if value not in ['None', '', '-', 'N/A'] else None
-            except (ValueError, TypeError):
-                return None
-        
-        return {
-            'pe_ratio': safe_float(data.get('PERatio')),
-            'pb_ratio': safe_float(data.get('PriceToBookRatio')),
-            'dividend_yield': safe_float(data.get('DividendYield')),
-            'roe': safe_float(data.get('ReturnOnEquityTTM')),
-            'beta_av': safe_float(data.get('Beta')),
-            'profit_margin': safe_float(data.get('ProfitMargin')),
-            'sector': data.get('Sector'),
-            'industry': data.get('Industry')
-        }
-
-    def _get_etf_profile(self, symbol: str) -> Dict:
-        """Fetch ETF data using ETF_PROFILE"""
-        params = {'function': 'ETF_PROFILE', 'symbol': symbol}
-        
-        data = self._make_av_request(params)
-        if not data:
-            return {}
-        
-        def safe_float(value):
-            try:
-                return float(value) if value not in ['None', '', '-', 'N/A'] else None
-            except (ValueError, TypeError):
-                return None
-        
-        # ETFs don't have ROE, PE, PB - set to None
-        # But they have dividend yield and expense ratio
-        return {
-            'pe_ratio': None,
-            'pb_ratio': None,
-            'dividend_yield': safe_float(data.get('dividend_yield')),
-            'roe': None,  # ETFs don't have ROE
-            'beta_av': None,  # Need to calculate from price data
-            'profit_margin': None,
-            'expense_ratio': safe_float(data.get('net_expense_ratio')),  # ETF-specific
-            'net_assets': safe_float(data.get('net_assets')),  # ETF-specific
-            'sector': 'ETF',  # Tag as ETF
-            'industry': data.get('asset_class', 'ETF')
-        }
+    def get_company_metrics(self, symbol: str) -> Dict:
+        """Fetch company metrics from yfinance (replaces Alpha Vantage)"""
+        return self._fetch_yfinance_metrics(symbol)
     
     def get_risk_free_rate(self) -> float:
         """Fetch 10-year Treasury rate from FMP"""
@@ -359,11 +336,11 @@ class DataCollector:
         # Fetch data
         prices = self.get_historical_prices(symbol, years)
         profile = self.get_company_profile(symbol)
-        av_data = self.get_alpha_vantage_data(symbol)
+        metrics = self.get_company_metrics(symbol)  # Now uses yfinance instead of Alpha Vantage
         
         # Add profile data
         result.update(profile)
-        result.update(av_data)
+        result.update(metrics)
         
         # Calculate metrics from price data
         if not prices.empty:
@@ -392,9 +369,8 @@ class DataCollector:
         print(f"Benchmark: {benchmark}")
         print(f"Historical period: {years} years")
         print(f"\nEstimated API calls:")
-        print(f"  FMP: ~{len(tickers) * 3} calls (price, profile, treasury)")
-        print(f"  Alpha Vantage: {len(tickers)} calls")
-        print(f"\n⚠️  Alpha Vantage will take ~{len(tickers) * 12 / 60:.1f} minutes due to rate limits")
+        print(f"  FMP: ~{len(tickers)} calls (company profiles)")
+        print(f"  yfinance: {len(tickers)} calls (metrics - free, no rate limits)")
         print("=" * 60)
         
         # Get risk-free rate once
@@ -432,7 +408,7 @@ class DataCollector:
             print(f"❌ Failed: {len(failed_tickers)} stocks - {failed_tickers}")
         print(f"\nTotal API calls:")
         print(f"  FMP: {self.fmp_calls}")
-        print(f"  Alpha Vantage: {self.av_calls}")
+        print(f"  yfinance: {len(tickers)} (free, no rate limits)")
         print("=" * 60)
         
         return df
@@ -445,9 +421,7 @@ if __name__ == "__main__":
     
     
     # Your stock universe (40-45 tickers from idea generation)
-    TICKERS = [
-        # Core candidates
-        'QQQ']
+    TICKERS = ["QQQ"]
     
     BENCHMARK = 'SPY'
     YEARS = 3  # Historical data period
@@ -455,13 +429,13 @@ if __name__ == "__main__":
     
     # Load API keys from environment
     FMP_API_KEY = os.getenv('FMP_API_KEY')
-    ALPHA_VANTAGE_KEY = os.getenv('ALPHA_VANTAGE_KEY')
     
-    if not FMP_API_KEY or not ALPHA_VANTAGE_KEY:
-        raise ValueError("FMP_API_KEY and ALPHA_VANTAGE_KEY must be set in .env file")
+    if not FMP_API_KEY:
+        raise ValueError("FMP_API_KEY must be set in .env file")
     
     # ===== RUN COLLECTION =====
-    collector = DataCollector(FMP_API_KEY, ALPHA_VANTAGE_KEY)
+    # Alpha Vantage key no longer needed (using yfinance instead)
+    collector = DataCollector(FMP_API_KEY)
     
     # Collect data
     df = collector.collect_universe(TICKERS, BENCHMARK, YEARS)
@@ -475,4 +449,5 @@ if __name__ == "__main__":
               'sortino_ratio', 'roe', 'dividend_yield']].head())
     
     print("\n✅ Ready for clustering! Run clustering_analysis.py next.")
-    print(f"\n⚠️  Remember to manually add ESG scores to {OUTPUT_FILE} before clustering!")
+    print(f"\n📝 Note: Metrics now use yfinance (no Alpha Vantage dependency).")
+    print(f"⚠️  Remember to manually add ESG Risk Ratings to {OUTPUT_FILE} before clustering!")

@@ -3,7 +3,17 @@ Clustering Analysis Script
 Loads stock metrics and performs K-Means clustering to classify stocks.
 Creates visualizations for team review.
 
-Run this AFTER data_collector.py and after manually adding ESG scores.
+Run this AFTER data_collector.py and after manually adding ESG Risk Ratings.
+
+NOTE: The 'esg_score' column contains ESG RISK RATINGS from Morningstar/Sustainalytics
+(not ESG scores). These are measured on a 0-100 scale where LOWER is BETTER.
+
+Risk Rating Scale:
+  Negligible: 0–9.99
+  Low: 10–19.99
+  Medium: 20–29.99
+  High: 30–39.99
+  Severe: 40+
 """
 
 import pandas as pd
@@ -68,12 +78,9 @@ class ClusteringAnalysis:
         print(f"\n🔍 Checking for missing values...")
         missing_counts = features_df.isnull().sum()
         if missing_counts.sum() > 0:
-            print("Missing values per feature:")
+            print("⚠️  WARNING: Missing values detected!")
             print(missing_counts[missing_counts > 0])
-            
-            # Handle missing values
-            print("\n🔧 Handling missing values (filling with median)...")
-            features_df = features_df.fillna(features_df.median())
+            raise ValueError("Cannot proceed with missing values. Please clean data before clustering.")
         else:
             print("✓ No missing values")
         
@@ -258,7 +265,8 @@ class ClusteringAnalysis:
             print(f"  ✓ Saved: cluster_sortino_drawdown.png")
             plt.close()
         
-        # 3D Scatter: Sharpe vs Volatility vs ESG (if ESG available)
+        # 3D Scatter: Sharpe vs Volatility vs ESG Risk Rating (if ESG available)
+        # NOTE: Lower ESG risk rating is BETTER (Negligible=0-10, Low=10-20, etc.)
         if all(col in feature_columns for col in ['sharpe_ratio', 'volatility', 'esg_score']):
             fig = plt.figure(figsize=(12, 8))
             ax = fig.add_subplot(111, projection='3d')
@@ -275,8 +283,9 @@ class ClusteringAnalysis:
             
             ax.set_xlabel('Volatility', fontsize=10)
             ax.set_ylabel('Sharpe Ratio', fontsize=10)
-            ax.set_zlabel('ESG Score', fontsize=10)
-            ax.set_title('3D Cluster Visualization', fontsize=14, fontweight='bold')
+            ax.set_zlabel('ESG Risk Rating\n(lower=better)', fontsize=10)
+            ax.set_title('3D Cluster Visualization\n(ESG Risk Ratings: Negligible 0-10, Low 10-20, Medium 20-30, High 30-40, Severe 40+)', 
+                        fontsize=12, fontweight='bold')
             ax.legend()
             plt.tight_layout()
             plt.savefig('cluster_3d.png', dpi=300, bbox_inches='tight')
@@ -301,13 +310,12 @@ if __name__ == "__main__":
     INPUT_FILE = 'stock_metrics.csv'  # File from data_collector.py (with ESG scores added)
     OUTPUT_FILE = 'clustered_stocks.csv'
     
-    # Features to use for clustering (the 8 key metrics)
+    # Features to use for clustering (7 key metrics)
     CLUSTERING_FEATURES = [
         'sortino_ratio',
         'sharpe_ratio',
         'volatility',
         'max_drawdown',
-        'roe',
         'dividend_yield',
         'esg_score',
         'beta_calculated'  # or 'beta_av' if using Alpha Vantage beta
@@ -367,7 +375,10 @@ if __name__ == "__main__":
     print("\n📋 NEXT STEPS:")
     print("  1. Review cluster_profiles.csv to understand each cluster")
     print("  2. Look at visualizations to see stock groupings")
-    print("  3. Manually label clusters in clustered_stocks.csv:")
+    print("  3. Note: esg_score = ESG Risk Rating (Sustainalytics/Morningstar)")
+    print("     - LOWER values are BETTER (Negligible < Low < Medium < High < Severe)")
+    print("     - Scale: Negligible 0-10, Low 10-20, Medium 20-30, High 30-40, Severe 40+")
+    print("  4. Manually label clusters in clustered_stocks.csv:")
     print("     - Add a 'category' column with: Core, Growth, Impact, or Reject")
-    print("  4. Use labeled data for Component 2 (Risk Scoring)")
+    print("  5. Use labeled data for Component 2 (Risk Scoring)")
     print("\n✅ Ready to proceed to risk scoring!")
