@@ -1,0 +1,10 @@
+ticker,historical_return,adjusted_return,rationale
+PG,0.0218453453143292,0.0418453453143292,Inflation hedge with pricing power - defensive moat in uncertain macro environment
+KO,0.072273670440492,0.072273670440492,No adjustment - using historical return
+JNJ,0.0798669883151486,0.0798669883151486,No adjustment - using historical return
+AAPL,0.2523945477551297,0.2223945477551297,"Services growth slowing - iPhone upgrade cycles lengthening, China headwinds"
+MSFT,0.2592141154378715,0.2592141154378715,No adjustment - using historical return
+NVDA,1.219345652133999,1.019345652133999,"AI hype normalization expected - current valuation unsustainable, expect mean reversion"
+PRBLX,0.233716548958359,0.233716548958359,No adjustment - using historical return
+ESGE,0.1533691287525092,0.1533691287525092,No adjustment - using historical return
+ICLN,-0.0631206669287491,-0.013120666928749095,Clean energy policy tailwinds - IRA + global decarbonization trends accelerating

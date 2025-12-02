@@ -1,0 +1,6 @@
+bond_name,maturity,coupon,allocation,annual_income,pct_of_portfolio,pct_of_bonds,rationale
+US Treasury 2027,2027-08-15,4.5,10000,450.0,2.0,16.0,Short-term liquidity - matures before first drawdown need
+US Treasury 2029,2029-02-15,4.25,12500,531.25,2.5,20.0,Aligns with Year 3 drawdown timing - provides cash when needed
+US Treasury 2031,2031-08-15,4.4,12500,550.0,2.5,20.0,Mid-term stability - covers Years 4-5 drawdown needs
+US Treasury 2034,2034-02-15,4.6,12500,575.0,2.5,20.0,Late-stage liquidity - supports Years 7-8 needs
+US Treasury 2036,2036-08-15,4.75,15000,712.5,3.0,24.0,Terminal maturity - aligns with 2036 community project funding
