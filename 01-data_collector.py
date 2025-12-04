@@ -15,7 +15,7 @@ Required metrics per the spec:
 - Dividend yield
 - P/E ratio (for context)
 
-Note: ESG scores must be added manually after running this script.
+Note: ESG scores and ETF Expense Ratios must be added manually after running this script.
 """
 
 import pandas as pd
@@ -36,9 +36,12 @@ class DataCollector:
             risk_free_rate: Annual risk-free rate (default 4%)
         """
         self.risk_free_rate = risk_free_rate
+        # Removed self._etf_cache
     
     # ========== DATA FETCHING ==========
-    
+
+    # Removed _load_etf_expense_ratios method
+
     def get_historical_prices(self, symbol: str, years: int = 3) -> pd.DataFrame:
         """Fetch historical prices using yfinance"""
         end = datetime.now()
@@ -77,17 +80,35 @@ class DataCollector:
             ticker = yf.Ticker(symbol)
             info = ticker.info
             
+            quote_type = info.get('quoteType', 'EQUITY')
+            is_etf = quote_type in ['ETF', 'MUTUALFUND']
+            
+            # Expense ratio will be manually added later, so it's None for now
+            expense_ratio = None
+            
+            # Calculate unified quality score
+            # NOTE: For ETFs, this will be None until you manually add the expense_ratio
+            if is_etf:
+                # The original logic was: (1 - expense_ratio) if expense_ratio else None
+                # Since we don't fetch it, it defaults to None for now.
+                quality_score = None 
+            else:
+                quality_score = info.get('returnOnEquity')
+            
             return {
-                'roe': info.get('returnOnEquity'),
-                'dividend_yield': info.get('dividendYield'),
-                'pe_ratio': info.get('trailingPE') or info.get('forwardPE'),
+                'roe': info.get('returnOnEquity') if not is_etf else None,
+                'expense_ratio': expense_ratio,
+                'quality_score': quality_score,  # Universal metric for clustering
+                'dividend_yield': info.get('dividendYield') or info.get('yield') or info.get('trailingAnnualDividendYield'),
+                'pe_ratio': info.get('trailingPE') or info.get('forwardPE') if not is_etf else None,
                 'sector': info.get('sector', 'Unknown'),
-                'industry': info.get('industry', 'Unknown')
+                'industry': info.get('industry', 'Unknown'),
+                'is_etf': is_etf
             }
         except Exception as e:
             print(f"  ⚠️  Could not fetch info for {symbol}: {e}")
             return {}
-    
+
     # ========== METRIC CALCULATIONS ==========
     
     def calculate_returns(self, prices: pd.DataFrame) -> pd.Series:
@@ -202,10 +223,65 @@ class DataCollector:
         
         return covariance / bench_variance
     
+    def calculate_tail_ratio(self, returns: pd.Series) -> Optional[float]:
+        """Calculate tail ratio: gain in best 5% / loss in worst 5%"""
+        if len(returns) < 20:
+            return None
+        
+        top_5_pct = returns.quantile(0.95)
+        bottom_5_pct = returns.quantile(0.05)
+        
+        gains = returns[returns >= top_5_pct].mean()
+        losses = abs(returns[returns <= bottom_5_pct].mean())
+        
+        if losses == 0:
+            return None
+        
+        return gains / losses
+
+    def calculate_rolling_correlation_std(self, stock_prices: pd.DataFrame, 
+                                        benchmark_prices: pd.DataFrame, 
+                                        window: int = 90) -> Optional[float]:
+        """Calculate std dev of 90-day rolling correlation with SPY"""
+        if stock_prices.empty or benchmark_prices.empty:
+            return None
+        
+        merged = pd.merge(
+            stock_prices[['date', 'close']],
+            benchmark_prices[['date', 'close']],
+            on='date',
+            suffixes=('_stock', '_bench')
+        )
+        
+        if len(merged) < window + 1:
+            return None
+        
+        stock_returns = merged['close_stock'].pct_change()
+        bench_returns = merged['close_bench'].pct_change()
+        
+        rolling_corr = stock_returns.rolling(window=window).corr(bench_returns)
+        
+        return rolling_corr.std()
+
+    def calculate_liquidity_score(self, symbol: str) -> Optional[float]:
+        """Calculate liquidity score: avg daily volume × price"""
+        try:
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+            
+            avg_volume = info.get('averageVolume') or info.get('averageVolume10days')
+            price = info.get('currentPrice') or info.get('previousClose')
+            
+            if avg_volume and price:
+                return avg_volume * price
+            return None
+        except:
+            return None
+    
     # ========== MAIN COLLECTION ==========
     
     def collect_stock_metrics(self, symbol: str, benchmark_prices: pd.DataFrame, 
-                             years: int = 3) -> Dict:
+                         years: int = 3) -> Dict:
         """Collect all required metrics for a single stock"""
         print(f"Collecting {symbol}...", end=" ")
         
@@ -229,6 +305,11 @@ class DataCollector:
         result['cvar_95'] = self.calculate_cvar(returns)
         result['beta'] = self.calculate_beta(prices, benchmark_prices)
         
+        # *** ADD THESE THREE NEW METRICS ***
+        result['tail_ratio'] = self.calculate_tail_ratio(returns)
+        result['rolling_correlation_std'] = self.calculate_rolling_correlation_std(prices, benchmark_prices)
+        result['liquidity_score'] = self.calculate_liquidity_score(symbol)
+        
         # Get fundamental data
         info = self.get_stock_info(symbol)
         result.update(info)
@@ -242,6 +323,9 @@ class DataCollector:
         print("=" * 60)
         print("DATA COLLECTION - Phase 2 Step 4")
         print("=" * 60)
+
+        # Removed: Logic to identify ETFs and call _load_etf_expense_ratios.
+        
         print(f"Universe: {len(tickers)} tickers")
         print(f"Benchmark: {benchmark}")
         print(f"Period: {years} years")
@@ -288,14 +372,13 @@ class DataCollector:
 if __name__ == "__main__":
     # Configuration
     TICKERS = [
-        # Core candidates (low volatility, dividend payers)
-        'PG', 'KO', 'JNJ',
         
-        # Growth candidates (tech, healthcare)
-        'AAPL', 'MSFT', 'NVDA', 
+        'AAPL', 'NET', 'NVDA', 
         
-        # Impact candidates (ESG, clean energy)
-        'PRBLX', 'ESGE', 'ICLN', 
+         'ESGE', 'ICLN', 
+
+        'OKLO', 'NLR', 'VEA', 'NXT', 'NEE', 'XYL', 'CRH', 'NLR', 'BMY', 'TYL', 'GRMN', 'GOOG', 'AVGO', 'CYBR', 'CRWD', 'AMD', 'DDOG', 'PLTR', 'NVDA', 'ABT',
+        'VRTX', 'TEM', 'ISRG', 'PG', 'COST', 'WMT', 'JBGS', 'ARE', 'HASI', 'SPG', 'IEMG', 'CEG', 'AEP', 'SRE', 'DUK', 'BEP', 'FSLR'
     ]
     
     BENCHMARK = 'SPY'
@@ -314,15 +397,17 @@ if __name__ == "__main__":
     # Preview
     print("\n📊 Preview:")
     preview_cols = ['ticker', 'annualized_return', 'volatility', 'sharpe_ratio', 
-                   'sortino_ratio', 'roe', 'dividend_yield']
+               'sortino_ratio', 'tail_ratio', 'liquidity_score', 'quality_score',
+               'roe', 'dividend_yield']
     preview_cols = [c for c in preview_cols if c in df.columns]
     print(df[preview_cols].head(10).to_string(index=False))
     
     print("\n" + "=" * 60)
     print("NEXT STEPS:")
     print("=" * 60)
-    print("1. ⚠️  Manually add 'esg_score' column to stock_metrics.csv")
+    print("1. ⚠️  Manually add 'expense_ratio' and 'esg_score' columns to stock_metrics.csv")
+    print("   - For ETFs, calculate and fill 'quality_score' as (1 - expense_ratio) / 1.0 (max ROE is 100%)")
     print("   - Look up ESG Risk Ratings on Sustainalytics/Morningstar")
-    print("   - Lower score = better (0-10 = Negligible, 10-20 = Low, etc.)")
+    print("   - Lower ESG score = better (0-10 = Negligible, 10-20 = Low, etc.)")
     print("2. Run clustering_analysis.py for Phase 2 Step 6")
     print("=" * 60)
