@@ -431,39 +431,37 @@ if __name__ == "__main__":
     
     # Bucket targets (as % of optimizable capital)
     BUCKET_TARGETS = {
-        'Core': 0.40,      # 40% of $427,500 = $171,000
-        'Growth': 0.38,    # 38% of $427,500 = $162,450
-        'Impact': 0.17     # 17% of $427,500 = $72,675
+        'Core': 0.45,      # 40% of $427,500 = $171,000
+        'Growth': 0.35,    # 38% of $427,500 = $162,450
+        'Impact': 0.15     # 17% of $427,500 = $72,675
     }
     # Buffer: 5% = $21,375 (held as additional cash)
     
     # Constraints per bucket
     CONSTRAINTS = {
         'Core': {
-            'max_volatility': 0.18,      # Relaxed from 0.15
-            'min_sortino': 0.50,         # Relaxed from 0.75
-            'min_position': 0.05,        # Relaxed from 0.08
-            'max_position': 0.25         # Relaxed from 0.15
+            'max_volatility': 0.14,
+            'min_sortino': 0.60, 
+            'min_position': 0.06,
+            'max_position': 0.15   
         },
         'Growth': {
-            'max_volatility': 0.30,      # Relaxed from 0.25
-            'min_sortino': 0.40,         # Relaxed from 0.60
-            'min_position': 0.03,        # Relaxed from 0.10
-            'max_position': 0.30         # Relaxed from 0.20
+            'max_volatility': 0.28,
+            'min_sortino': 0.40,
+            'min_position': 0.08,
+            'max_position': 0.18
         },
         'Impact': {
-            'max_volatility': 0.25,      # Relaxed from 0.20
-            'min_sortino': 0.45,         # Relaxed from 0.65
-            'min_position': 0.10,        # Relaxed from 0.15
-            'max_position': 0.40         # Relaxed from 0.35
+            'max_volatility': 0.23,
+            'min_sortino': 0.55, 
+            'min_position': 0.10,  
+            'max_position': 0.20 
         }
     }
     
     # Black-Litterman Lite adjustments (based on qualitative research)
     BL_ADJUSTMENTS = {
-        'NVDA': (0.25, 'AI hype normalization expected'),
-        'NEE': (0.11, 'IRA clean energy tailwinds'),
-        # Add more as needed after Step 9
+        'NVDA': (0.45, 'AI hype normalization expected'),
     }
     
     print("\n" + "="*70)

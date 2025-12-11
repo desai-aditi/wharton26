@@ -1,7 +1,7 @@
-bond_name,ticker,maturity,coupon,allocation,annual_income,pct_of_portfolio,pct_of_bonds,rationale
-T-BOND 6.500% 15-Nov-2026,T-BOND 6.500% 15-Nov-2026,2026-11-15,6.5,10000,650.0,2.0,16.0,"Highest early yield - matures before drawdowns, provides reinvestment flexibility"
-T-BOND 6.125% 15-Nov-2027,T-BOND 6.125% 15-Nov-2027,2027-11-15,6.125,10000,612.5,2.0,16.0,"Strong yield - matures 1 year before first drawdown, allows strategic positioning"
-T-BOND 5.250% 15-Feb-2029,T-BOND 5.250% 15-Feb-2029,2029-02-15,5.25,12500,656.25,2.5,20.0,INSURANCE POLICY - matures exactly when Year 3 drawdown begins ($10k needed)
-T-BOND 6.250% 15-May-2030,T-BOND 6.250% 15-May-2030,2030-05-15,6.25,10000,625.0,2.0,16.0,"Highest mid-term yield - covers Years 4-5 drawdown needs, strong cash flow"
-T-BOND 5.375% 15-Feb-2031,T-BOND 5.375% 15-Feb-2031,2031-02-15,5.375,10000,537.5,2.0,16.0,Mid-term stability - bridge between early drawdowns and 2036 project
-T-BOND 4.500% 15-Feb-2036,T-BOND 4.500% 15-Feb-2036,2036-02-15,4.5,10000,450.0,2.0,16.0,THE COMMUNITY CENTER BOND - matures exactly when major project funding needed
+bond_name,maturity,coupon,allocation,annual_income,pct_of_portfolio,pct_of_bonds,rationale
+US Treasury 2026,2026-11-15,6.5,10000,650.0,2.0,16.0,Short-term liquidity - matures before first drawdown need
+US Treasury 2028,2028-11-15,5.25,10000,525.0,2.0,16.0,Aligns with Year 3 drawdown timing - provides cash when needed
+US Treasury 2029,2029-02-15,5.25,12500,656.25,2.5,20.0,Mid-term stability - covers Years 4-5 drawdown needs
+US Treasury 2030,2030-05-15,6.25,10000,625.0,2.0,16.0,Late-stage liquidity - supports Years 7-8 needs
+US Treasury 2031,2031-02-15,5.375,10000,537.5,2.0,16.0,Terminal maturity - aligns with 2036 community project funding
+US Treasury 3026,2036-02-15,4.5,10000,450.0,2.0,16.0,Terminal maturity - aligns with 2036 community project funding

@@ -23,38 +23,45 @@ import pandas as pd
 
 BOND_LADDER = [
     {
-        'bond_name': 'US Treasury 2027',
-        'maturity': '2027-08-15',
-        'coupon': 4.50,  # Approximate current yields
+        'bond_name': 'US Treasury 2026',
+        'maturity': '2026-11-15',
+        'coupon': 6.50,  # Approximate current yields
         'allocation': 10000,
         'rationale': 'Short-term liquidity - matures before first drawdown need'
     },
     {
-        'bond_name': 'US Treasury 2029',
-        'maturity': '2029-02-15',
-        'coupon': 4.25,
-        'allocation': 12500,
+        'bond_name': 'US Treasury 2028',
+        'maturity': '2028-11-15',
+        'coupon': 5.25,
+        'allocation': 10000,
         'rationale': 'Aligns with Year 3 drawdown timing - provides cash when needed'
     },
     {
-        'bond_name': 'US Treasury 2031',
-        'maturity': '2031-08-15',
-        'coupon': 4.40,
+        'bond_name': 'US Treasury 2029',
+        'maturity': '2029-02-15',
+        'coupon': 5.25,
         'allocation': 12500,
         'rationale': 'Mid-term stability - covers Years 4-5 drawdown needs'
     },
     {
-        'bond_name': 'US Treasury 2034',
-        'maturity': '2034-02-15',
-        'coupon': 4.60,
-        'allocation': 12500,
+        'bond_name': 'US Treasury 2030',
+        'maturity': '2030-05-15',
+        'coupon': 6.25,
+        'allocation': 10000,
         'rationale': 'Late-stage liquidity - supports Years 7-8 needs'
     },
     {
-        'bond_name': 'US Treasury 2036',
-        'maturity': '2036-08-15',
-        'coupon': 4.75,
-        'allocation': 15000,
+        'bond_name': 'US Treasury 2031',
+        'maturity': '2031-02-15',
+        'coupon': 5.375,
+        'allocation': 10000,
+        'rationale': 'Terminal maturity - aligns with 2036 community project funding'
+    },
+    {
+        'bond_name': 'US Treasury 3026',
+        'maturity': '2036-02-15',
+        'coupon': 4.5,
+        'allocation': 10000,
         'rationale': 'Terminal maturity - aligns with 2036 community project funding'
     }
 ]

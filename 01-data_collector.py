@@ -372,13 +372,7 @@ class DataCollector:
 if __name__ == "__main__":
     # Configuration
     TICKERS = [
-        
-        'AAPL', 'NET', 'NVDA', 
-        
-         'ESGE', 'ICLN', 
-
-        'OKLO', 'NLR', 'VEA', 'NXT', 'NEE', 'XYL', 'CRH', 'NLR', 'BMY', 'TYL', 'GRMN', 'GOOG', 'AVGO', 'CYBR', 'CRWD', 'AMD', 'DDOG', 'PLTR', 'NVDA', 'ABT',
-        'VRTX', 'TEM', 'ISRG', 'PG', 'COST', 'WMT', 'JBGS', 'ARE', 'HASI', 'SPG', 'IEMG', 'CEG', 'AEP', 'SRE', 'DUK', 'BEP', 'FSLR'
+        'O', 'JPM', 'BDX', 'VST', 'FI', 'LRCX', 'TT', 'ECL'
     ]
     
     BENCHMARK = 'SPY'
